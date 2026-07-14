@@ -1,0 +1,44 @@
+{
+  "name": "jobspy-mcp-server",
+  "version": "1.0.0",
+  "description": "Model Context Protocol server for JobSpy",
+  "main": "src/index.js",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/borgius/jobspy-mcp-server.git"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "mcp",
+    "jobspy",
+    "jobs",
+    "search",
+    "llm"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.10.1",
+    "change-case-object": "^2.0.0",
+    "cors": "^2.8.5",
+    "express": "^4.22.1",
+    "winston": "^3.10.0",
+    "zod": "^3.25.0"
+  },
+  "overrides": {
+    "qs": ">=6.15.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "eslint-plugin-import": "^2.31.0",
+    "globals": "^17.0.0",
+    "nodemon": "^3.0.1"
+  }
+}

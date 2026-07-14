@@ -1,0 +1,6 @@
+POST http://localhost:9423/api
+Content-Type: application/json; charset=utf-8
+
+{
+  "site_names": "indeed"
+}
