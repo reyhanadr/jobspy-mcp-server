@@ -1,8 +1,14 @@
 import logger from '../logger.js';
 import { searchParams } from '../schemas/searchParamsSchema.js';
 import { execSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import changeCase from 'change-case-object';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const JOBSPY_DIR = path.resolve(__dirname, '../../jobspy');
 
 /**
  * @typedef {Object} JobSearchParams
@@ -172,12 +178,13 @@ export function searchJobsHandler(params) {
     logger.info('Validated parameters', { validatedParams });
 
     const args = buildCommandArgs(validatedParams);
-    const dockerCmd = process.env.DOCKER_CMD || 'docker';
-    const cmd = `${dockerCmd} run --rm jobspy ${args.join(' ')}`;
-    logger.info(`Spawning process with args: ${cmd}`);
+    const runner = resolveRunner();
+    const cmd = buildRunCommand(runner, args);
+    logger.info(`[${runner}] Spawning process: ${cmd}`);
 
     const timeout = params.timeout || 60000; // Default timeout of 60 seconds
-    result = execSync(cmd, { timeout }).toString();
+    const cwd = runner === 'uv' ? JOBSPY_DIR : process.cwd();
+    result = execSync(cmd, { timeout, cwd }).toString();
 
     const parsedData = JSON.parse(result);
 
@@ -206,6 +213,53 @@ export function searchJobsHandler(params) {
     });
     throw error;
   }
+}
+
+/**
+ * Check if Docker is available on the system
+ * @returns {boolean}
+ */
+function checkDockerAvailable() {
+  try {
+    execSync('docker --version', { stdio: 'ignore' });
+    // Also check if the jobspy Docker image exists
+    const images = execSync('docker images -q jobspy', { encoding: 'utf-8' });
+    return images.trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resolve which runner to use: docker or uv
+ * Priority: JOBSPY_RUNNER env var > auto-detect docker > uv
+ * @returns {'docker'|'uv'}
+ */
+function resolveRunner() {
+  const forced = process.env.JOBSPY_RUNNER?.toLowerCase();
+  if (forced === 'docker' || forced === 'uv') {
+    return forced;
+  }
+  if (checkDockerAvailable()) {
+    return 'docker';
+  }
+  logger.info('Docker not available, falling back to uv + Python');
+  return 'uv';
+}
+
+/**
+ * Build the full command string for the selected runner
+ * @param {'docker'|'uv'} runner
+ * @param {string[]} args - CLI arguments for main.py
+ * @returns {string}
+ */
+function buildRunCommand(runner, args) {
+  if (runner === 'docker') {
+    const dockerCmd = process.env.DOCKER_CMD || 'docker';
+    return `${dockerCmd} run --rm jobspy ${args.join(' ')}`;
+  }
+  // uv runner: run python via uv in the jobspy venv
+  return `uv run python main.py ${args.join(' ')}`;
 }
 
 /**

@@ -12,9 +12,10 @@ A Model Context Protocol (MCP) server that enables AI assistants like Claude to 
 
 ## Prerequisites
 
-- Node.js 16+
-- Python 3.6+
-- The JobSpy tool installed and available
+- [Bun](https://bun.sh/) (JavaScript runtime & package manager)
+- Python 3.10+
+- [uv](https://docs.astral.sh/uv/) (fast Python package & project manager)
+- Docker (for running JobSpy container)
 
 ## Installation
 
@@ -23,13 +24,14 @@ A Model Context Protocol (MCP) server that enables AI assistants like Claude to 
 git clone https://github.com/borgius/jobspy-mcp-server.git
 cd jobspy-mcp-server
 
-# Install dependencies
-npm install
+# Install Node.js dependencies with Bun
+bun install
 
-# Make sure the JobSpy tool is properly set up
-cd ../jobSpy
-pip install -r requirements.txt
-chmod +x run.sh
+# Set up Python virtual environment for JobSpy
+cd jobspy
+uv venv
+uv pip install -r requirements.txt
+cd ..
 ```
 
 ## Configuration
@@ -64,7 +66,7 @@ export JOBSPY_PORT=9423
 export ENABLE_SSE=1
 ```
 
-### 2. Using a .env file
+### 2. Using a `.env` file
 
 Create a `.env` file in the root directory with your configuration:
 
@@ -80,7 +82,7 @@ ENABLE_SSE=1
 ### Starting the server
 
 ```bash
-npm start
+bun start
 ```
 
 ### Connecting with Claude Desktop
@@ -91,10 +93,10 @@ Add the following to your Claude Desktop config file (typically at `~/Library/Ap
 {
   "mcpServers": {
     "jobspy": {
-      "command": "node",
-      "args": ["/path/to/jobspy-mcp-server/src/index.js"],
+      "command": "bun",
+      "args": ["run", "/path/to/jobspy-mcp-server/src/index.js"],
       "env": {
-        "ENABLE_SSE": 0
+        "ENABLE_SSE": "0"
       }
     }
   }
@@ -211,14 +213,31 @@ docker run -p 9423:9423 jobspy-mcp-server
 ### Running in development mode
 
 ```bash
-npm run dev
+bun run dev
 ```
 
 ### Running tests
 
 ```bash
-npm test
+bun test
 ```
+
+### Testing with MCP Inspector
+
+The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) lets you interactively test and debug your MCP server:
+
+```bash
+# Run the inspector against your server
+npx @modelcontextprotocol/inspector bun run src/index.js
+```
+
+This opens a browser UI where you can:
+- List available tools, prompts, and resources
+- Invoke `search_jobs` with custom parameters and see responses
+- Inspect JSON-RPC messages between client and server
+- Debug connection and transport issues
+
+### Quick API test
 
 ```bash
 curl -X POST "http://localhost:9423/api" \
