@@ -12,11 +12,6 @@ class SseManager {
   transports = {};
 
   /**
-   * @type McpServer
-   */
-  mcpServer;
-
-  /**
    * Storage for progress tokens by sessionId
    */
   progressTokens = {};
@@ -25,10 +20,6 @@ class SseManager {
    * Storage for tool calls by connectionId and toolCallId
    */
   toolCalls = {};
-
-  constructor(server) {
-    this.mcpServer = server;
-  }
 
   /**
    * Adds a new SSE transport for a client
@@ -72,9 +63,10 @@ class SseManager {
    * @param {object} message - Message to broadcast
    */
   async notificationProgress(message, sessionId) {
-    const clients = Object.values(this.transports);
-    if (clients.length === 0) {return;}
-    await this.mcpServer.server.notification({
+    const transport = this.transports[sessionId];
+    if (!transport) { return; }
+    await transport.send({
+      jsonrpc: '2.0',
       method: 'notifications/progress',
       params: {
         ...message,

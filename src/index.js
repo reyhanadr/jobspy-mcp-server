@@ -17,20 +17,32 @@ const PORT = process.env.JOBSPY_PORT || 9423;
 const HOST = process.env.JOBSPY_HOST || '0.0.0.0';
 const ENABLE_SSE = !!(process.env.ENABLE_SSE | 0);
 
-// Create the MCP server
-const server = new McpServer({
-  name: 'JobSpy MCP Server',
-  version: '1.0.0',
-  description:
-    'A Model Context Protocol server that enables searching for jobs across various platforms',
-});
+const sseManager = new SseManager();
 
-const sseManager = new SseManager(server);
+// Track all server instances so they can be closed on shutdown
+const servers = new Set();
 
-searchJobsPrompt(server);
-jobRecommendationsPrompt(server);
-resumeFeedbackPrompt(server);
-searchJobsTool(server, sseManager);
+/**
+ * Create a fresh MCP server with all prompts and tools registered.
+ * The SDK Protocol supports only one transport per server, so each SSE
+ * connection gets its own McpServer instance.
+ */
+function createMcpServer() {
+  const server = new McpServer({
+    name: 'JobSpy MCP Server',
+    version: '1.0.0',
+    description:
+      'A Model Context Protocol server that enables searching for jobs across various platforms',
+  });
+
+  searchJobsPrompt(server);
+  jobRecommendationsPrompt(server);
+  resumeFeedbackPrompt(server);
+  searchJobsTool(server, sseManager);
+
+  servers.add(server);
+  return server;
+}
 
 // Initialize transports
 let stdioTransport = null;
@@ -65,9 +77,16 @@ async function runServer() {
         // SSE endpoint for client connections
         app.get('/sse', async (req, res) => {
           const transport = sseManager.createTransport('/messages', res);
+          const server = createMcpServer();
 
           res.on('close', () => {
             sseManager.removeTransport(transport.sessionId);
+            servers.delete(server);
+            server.close().catch((error) =>
+              logger.error('Error closing SSE server', {
+                error: error.message,
+              }),
+            );
             logger.info(`Client disconnected: ${transport.sessionId}`);
           });
 
@@ -111,6 +130,7 @@ async function runServer() {
     } else {
       // Set up stdio transport if no SSE
       try {
+        const server = createMcpServer();
         stdioTransport = new StdioServerTransport();
         await server.connect(stdioTransport);
         connectedTransports.push('stdio');
@@ -147,8 +167,12 @@ async function shutdown() {
   logger.info('Shutting down JobSpy MCP server...');
 
   try {
-    // Disconnect all transports gracefully
-    await server.disconnect();
+    // Close all active server instances
+    for (const server of servers) {
+      await server.close().catch((error) =>
+        logger.error('Error closing server', { error: error.message }),
+      );
+    }
 
     // Close HTTP server if it exists
     if (httpServer) {
