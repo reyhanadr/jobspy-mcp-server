@@ -6,7 +6,7 @@ FROM python:3.12-slim AS builder
 # Provide uv (binary only) from the official Astral image; pinned for reproducibility
 COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /uvx /bin/
 
-# Optional proxy forwarded by `docker build --build-arg https_proxy=...` (see Taskfile)
+# Optional proxy forwarded via `docker build --build-arg https_proxy=...`
 ARG http_proxy
 ARG https_proxy
 ENV http_proxy=${http_proxy} \

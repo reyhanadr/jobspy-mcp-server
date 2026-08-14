@@ -1,0 +1,19 @@
+services:
+  job-spy-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: jobspy-mcp-server
+    restart: unless-stopped
+    environment:
+      ENABLE_SSE: "${ENABLE_SSE:-1}"
+      JOBSPY_RUNNER: "${JOBSPY_RUNNER:-uv}"
+      JOBSPY_HOST: "${JOBSPY_HOST:-0.0.0.0}"
+      JOBSPY_PORT: "${JOBSPY_PORT:-9423}"
+    ports:
+      - "${JOBSPY_PORT:-9423}:9423"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G

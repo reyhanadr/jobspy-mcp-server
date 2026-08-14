@@ -1,0 +1,21 @@
+node_modules
+.bun
+.git
+.gitignore
+.env
+.env.*
+.dockerignore
+Dockerfile
+docker-compose*.yml
+README.md
+coverage
+.vscode
+.idea
+dist
+tmp
+*.log
+
+# JobSpy Python build context leftovers
+jobspy/.venv
+**/__pycache__
+*.py[cod]

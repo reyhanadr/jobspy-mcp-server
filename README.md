@@ -15,7 +15,7 @@ A Model Context Protocol (MCP) server that enables AI assistants like Claude to 
 - [Bun](https://bun.sh/) (JavaScript runtime & package manager)
 - Python 3.10+
 - [uv](https://docs.astral.sh/uv/) (fast Python package & project manager)
-- Docker (for running JobSpy container)
+- [Docker](https://www.docker.com/) + Docker Compose (optional — containerized run)
 
 ## Installation
 
@@ -84,6 +84,15 @@ ENABLE_SSE=1
 ```bash
 bun start
 ```
+
+### Running with Docker Compose
+
+```bash
+docker compose up --build -d
+```
+
+This builds the image and starts the MCP server with SSE enabled on port
+`9423` (see [Docker Support](#docker-support)).
 
 ### Connecting with Claude Desktop
 
@@ -198,14 +207,28 @@ I need to find senior software engineer jobs in Boston posted in the last 24 hou
 
 ## Docker Support
 
-A Dockerfile is provided to containerize the MCP server:
+A multi-stage [`Dockerfile`](./Dockerfile) (Bun + Python/uv for JobSpy) and a
+[`docker-compose.yml`](./docker-compose.yml) are provided to run the server in a
+container:
 
 ```bash
-# Build the Docker image
-docker build -t jobspy-mcp-server .
+# Build & start (SSE enabled on port 9423)
+docker compose up --build -d
 
-# Run the container
-docker run -p 9423:9423 jobspy-mcp-server
+# View logs
+docker compose logs -f
+
+# Stop
+docker compose down
+```
+
+Configuration is read from `.env` (compose interpolates `${VARIABLE}` with
+defaults), e.g.:
+
+```bash
+ENABLE_SSE=1
+JOBSPY_HOST=0.0.0.0
+JOBSPY_PORT=9423
 ```
 
 ## Development
