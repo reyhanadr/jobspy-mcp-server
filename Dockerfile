@@ -10,11 +10,6 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
 # ---------- runner (Bun + Python/uv for JobSpy) ----------
 FROM oven/bun:1-slim AS runner
 
-# JobSpy deps (numpy/pandas/tls-client) ship glibc wheels -> install python3 on Debian
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends python3 \
-    && rm -rf /var/lib/apt/lists/*
-
 # uv is required at runtime: the server invokes JobSpy via `uv run python main.py`
 COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /uvx /bin/
 
@@ -23,15 +18,18 @@ ENV NODE_ENV=production \
     PYTHONDONTWRITEBYTECODE=1 \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
+    UV_PYTHON_INSTALL_DIR=/opt/uv/python \
     VIRTUAL_ENV=/app/jobspy/.venv \
     PATH="/app/jobspy/.venv/bin:$PATH"
 
 WORKDIR /app
 
-# Python deps first -> layer cached until requirements.txt changes
+# JobSpy pins numpy==1.26.3 (no wheels for Python 3.13), so install standalone
+# CPython 3.12 via uv instead of relying on the distro's default Python.
 COPY jobspy/requirements.txt ./jobspy/requirements.txt
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv venv /app/jobspy/.venv \
+    uv python install 3.12 \
+    && uv venv --python 3.12 /app/jobspy/.venv \
     && uv pip install -r jobspy/requirements.txt
 
 # Node production deps + source
