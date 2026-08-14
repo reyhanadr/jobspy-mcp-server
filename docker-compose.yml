@@ -1,5 +1,7 @@
+name: job-spy
+
 services:
-  job-spy-mcp:
+  mcp:
     build:
       context: .
       dockerfile: Dockerfile
