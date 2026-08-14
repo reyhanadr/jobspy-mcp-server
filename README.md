@@ -228,7 +228,7 @@ The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) lets you 
 
 ```bash
 # Run the inspector against your server
-npx @modelcontextprotocol/inspector bun run src/index.js
+bunx @modelcontextprotocol/inspector bun run src/index.js
 ```
 
 This opens a browser UI where you can:

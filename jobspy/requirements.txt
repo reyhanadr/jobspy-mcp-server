@@ -1,1 +1,1 @@
-python-jobspy>=1.1.80
+python-jobspy==1.1.82
