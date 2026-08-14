@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: jobspy-mcp-server
+    image: job-spy-mcp-server
     restart: unless-stopped
     environment:
       ENABLE_SSE: "${ENABLE_SSE:-1}"
