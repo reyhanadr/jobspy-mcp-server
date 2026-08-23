@@ -66,24 +66,24 @@ Configuration is read from environment variables or a `.env` file in the project
 |-----------------|----------------------------------------------------------------------|------------|
 | `JOBSPY_PORT`   | Port for the HTTP/SSE server                                         | `9423`     |
 | `JOBSPY_HOST`   | Host to bind the HTTP/SSE server to                                  | `0.0.0.0`  |
-| `ENABLE_SSE`    | Set to `1` to enable the SSE/HTTP transport (`0` uses stdio)         | `0`        |
-| `JOBSPY_RUNNER` | Force the JobSpy runner: `uv` or `docker` (auto-detected if unset)   | auto       |
+| `ENABLE_SSE`    | Set to `true` to enable the SSE/HTTP transport (`false` uses stdio)  | `false`    |
+| `JOBSPY_RUNNER` | Force the JobSpy runner: `python`, `uv`, or `docker`                 | `python`   |
 | `DOCKER_CMD`    | Docker command used by the `docker` runner                           | `docker`   |
 
 Example `.env`:
 
 ```
-JOBSPY_RUNNER=uv
+JOBSPY_RUNNER=python
 JOBSPY_HOST=0.0.0.0
 JOBSPY_PORT=9423
-ENABLE_SSE=1
+ENABLE_SSE=true
 ```
 
 ### How the JobSpy runner is selected
 
-1. If `JOBSPY_RUNNER` is set to `uv` or `docker`, that runner is used.
+1. If `JOBSPY_RUNNER` is set to `docker`, `python`, or `uv`, that runner is used.
 2. Otherwise the server checks whether Docker is available **and** a `jobspy` image exists; if so, it uses `docker`.
-3. Otherwise it falls back to `uv run python main.py` inside the `jobspy/` folder.
+3. Otherwise it runs Python directly with the virtual environment inside the `jobspy/` folder.
 
 ## Usage
 
@@ -95,7 +95,7 @@ bun start            # runs: node src/index.js
 bun run src/index.js
 ```
 
-With the default configuration (`ENABLE_SSE=0`) the server starts in **stdio** mode, ideal for MCP desktop clients. With `ENABLE_SSE=1` it starts the HTTP server on port `9423`.
+With the default configuration (`ENABLE_SSE=false`) the server starts in **stdio** mode, ideal for MCP desktop clients. With `ENABLE_SSE=true` it starts the HTTP server on port `9423`.
 
 ### Connecting with Claude Desktop
 
@@ -108,7 +108,7 @@ Add the following to your Claude Desktop configuration file (typically at `~/Lib
       "command": "bun",
       "args": ["run", "/path/to/jobspy-mcp-server/src/index.js"],
       "env": {
-        "ENABLE_SSE": "0"
+        "ENABLE_SSE": "false"
       }
     }
   }
@@ -124,7 +124,7 @@ Then ask Claude something like:
 Start the server with SSE enabled:
 
 ```bash
-ENABLE_SSE=1 bun start
+ENABLE_SSE=true bun start
 ```
 
 The server exposes HTTP endpoints that let web applications talk to the MCP server:
@@ -213,10 +213,10 @@ Searches for jobs across one or more job listing websites.
 | `descriptionFormat`      | string            | `markdown` or `html`                                                 | `"markdown"`       |
 | `offset`                 | integer           | Start the search from an offset                                      | `0`                |
 | `hoursOld`               | integer           | Only jobs posted within this many hours                              | `72`               |
-| `verbose`                | integer           | `0`=errors only, `1`=+warnings, `2`=all logs                         | `2`                |
+| `verbose`                | integer           | `0`=errors only, `1`=+warnings, `2`=all logs                         | `1`                |
 | `countryIndeed`          | string            | Country for Indeed search                                            | `"USA"`            |
 | `isRemote`               | boolean           | Search for remote jobs only                                          | `false`            |
-| `linkedinFetchDescription` | boolean         | Fetch LinkedIn job descriptions (slower)                             | `true`             |
+| `linkedinFetchDescription` | boolean         | Fetch LinkedIn job descriptions (slower)                             | `false`            |
 | `linkedinCompanyIds`     | string \| number[] | Restrict LinkedIn results to company IDs                             | `null`             |
 | `enforceAnnualSalary`    | boolean           | Normalize wages to an annual salary                                  | `false`            |
 | `proxies`                | string \| string[] | Comma-separated list of proxies                                      | `null`             |
@@ -274,13 +274,13 @@ docker compose down
 Compose reads configuration from `.env` (with defaults), e.g.:
 
 ```
-ENABLE_SSE=1
-JOBSPY_RUNNER=uv
+ENABLE_SSE=true
+JOBSPY_RUNNER=python
 JOBSPY_HOST=0.0.0.0
 JOBSPY_PORT=9423
 ```
 
-To use the `docker` runner instead of `uv`, build the JobSpy image first and set `JOBSPY_RUNNER=docker`:
+To use the `docker` runner instead of `python`, build the JobSpy image first and set `JOBSPY_RUNNER=docker`:
 
 ```bash
 docker build -t jobspy jobspy/
@@ -315,7 +315,7 @@ The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) lets you 
 
 ```bash
 # Run the inspector against your server (stdio)
-bunx @modelcontextprotocol/inspector -e ENABLE_SSE=0 --cwd "C:\path-to-project\jobspy-mcp-server" bun run "C:\path-to-project\jobspy-mcp-server\src\index.js"
+bunx @modelcontextprotocol/inspector -e ENABLE_SSE=false --cwd "C:\path-to-project\jobspy-mcp-server" bun run "C:\path-to-project\jobspy-mcp-server\src\index.js"
 ```
 
 This opens a browser UI where you can:
@@ -330,7 +330,7 @@ This opens a browser UI where you can:
 1. Enable SSE and start the server:
 
    ```bash
-   ENABLE_SSE=1 bun run src/index.js
+   ENABLE_SSE=true bun run src/index.js
    ```
 
    The server listens at `http://localhost:9423/sse`.
