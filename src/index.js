@@ -12,10 +12,17 @@ import {
 } from './prompts/index.js';
 import { searchJobsTool, searchJobsHandler } from './tools/index.js';
 
+const parseBooleanEnv = (val, defaultValue = false) => {
+  if (val === undefined || val === null || val === '') return defaultValue;
+  const str = String(val).trim().toLowerCase();
+  return ['true', '1', 'yes', 'on', 'y'].includes(str);
+};
+
 // Environment configuration
 const PORT = process.env.JOBSPY_PORT || 9423;
 const HOST = process.env.JOBSPY_HOST || '0.0.0.0';
-const ENABLE_SSE = !!(process.env.ENABLE_SSE | 0);
+const ENABLE_SSE = parseBooleanEnv(process.env.ENABLE_SSE, false);
+
 
 const sseManager = new SseManager();
 

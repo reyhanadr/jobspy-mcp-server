@@ -9,7 +9,7 @@ services:
     restart: unless-stopped
     init: true
     environment:
-      ENABLE_SSE: "${ENABLE_SSE:-1}"
+      ENABLE_SSE: "${ENABLE_SSE:-true}"
       JOBSPY_RUNNER: "${JOBSPY_RUNNER:-python}"
       JOBSPY_HOST: "${JOBSPY_HOST:-0.0.0.0}"
       JOBSPY_PORT: "${JOBSPY_PORT:-9423}"
