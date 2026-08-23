@@ -85,6 +85,14 @@ jobs = scrape_jobs(
 )
 # print(f"Found {len(jobs)} jobs", file=sys.stderr)
 
+def snake_to_camel(name: str) -> str:
+    if not isinstance(name, str):
+        return name
+    parts = [p for p in name.split('_') if p]
+    if not parts:
+        return name
+    return parts[0] + ''.join(p.capitalize() for p in parts[1:])
+
 # Output based on selected format
 if args.output:
     # Output to file
@@ -94,11 +102,25 @@ if args.output:
         jobs.to_csv(output_file, quoting=csv.QUOTE_NONNUMERIC, escapechar="\\", index=False)
         print(f"Jobs saved to {output_file}")
     elif args.format == "json":
-        jobs.to_json(output_file, orient="records", indent=2)
+        if jobs is not None and not jobs.empty:
+            jobs = jobs.rename(columns={col: snake_to_camel(col) for col in jobs.columns})
+            jobs_json = jobs.to_json(orient="records", date_format="iso")
+            with open(output_file, "w", encoding="utf-8") as f:
+                f.write(f'{{"count":{len(jobs)},"jobs":{jobs_json}}}')
+        else:
+            with open(output_file, "w", encoding="utf-8") as f:
+                f.write('{"count":0,"jobs":[]}')
         print(f"Jobs saved to {output_file}")
 else:
     # Output to stdout
     if args.format == "csv":
         jobs.to_csv(sys.stdout, quoting=csv.QUOTE_NONNUMERIC, escapechar="\\", index=False)
     elif args.format == "json":
-        print(jobs.to_json(orient="records", indent=2))
+        if jobs is not None and not jobs.empty:
+            jobs = jobs.rename(columns={col: snake_to_camel(col) for col in jobs.columns})
+            jobs_json = jobs.to_json(orient="records", date_format="iso")
+            sys.stdout.write(f'{{"count":{len(jobs)},"jobs":{jobs_json}}}\n')
+        else:
+            sys.stdout.write('{"count":0,"jobs":[]}\n')
+        sys.stdout.flush()
+

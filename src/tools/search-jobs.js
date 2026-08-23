@@ -1,40 +1,295 @@
 import logger from '../logger.js';
 import { searchParams } from '../schemas/searchParamsSchema.js';
-import { execSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import changeCase from 'change-case-object';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const JOBSPY_DIR = path.resolve(__dirname, '../../jobspy');
 
 /**
- * @typedef {Object} JobSearchParams
- * @property {string} [siteNames] - Names of job sites to search (linkedin, zip_recruiter, indeed, glassdoor, google, bayt)
- * @property {string} [searchTerm] - Term to search for
- * @property {string} [location] - Job location
- * @property {number} [distance] - Distance in miles, default 50
- * @property {string} [jobType] - Type of job: fulltime, parttime, internship, contract
- * @property {string} [googleSearchTerm] - Term for Google job search
- * @property {number} [resultsWanted] - Number of job results to retrieve for each site
- * @property {boolean} [easyApply] - Filters for jobs that are hosted on the job board site
- * @property {string} [descriptionFormat] - Format type of the job descriptions: markdown, html
- * @property {number} [offset] - Starts the search from an offset
- * @property {number} [hoursOld] - Filter jobs by the number of hours since posted
- * @property {number} [verbose] - Controls verbosity (0=errors only, 1=errors+warnings, 2=all logs)
- * @property {string} [countryIndeed] - Country code for Indeed search
- * @property {boolean} [isRemote] - Whether to search for remote jobs only
- * @property {boolean} [linkedinFetchDescription] - Whether to fetch LinkedIn job descriptions
- * @property {string} [linkedinCompanyIds] - Searches for linkedin jobs with specific company ids
- * @property {boolean} [enforceAnnualSalary] - Converts wages to annual salary
- * @property {string} [proxies] - Comma-separated list of proxies
- * @property {string} [caCert] - Path to CA Certificate file for proxies
- * @property {'json'|'csv'} [format] - Output format: JSON or CSV
- * @property {number} [timeout] - Timeout in milliseconds for the job search process
+ * Concurrency Gate (Capacity = 1)
+ * Under memory constraints, ensures only one Python scraping process runs at a time
+ * while keeping the Bun event loop non-blocking for /health and SSE.
  */
+class AsyncQueue {
+  constructor(concurrency = 1) {
+    this.concurrency = concurrency;
+    this.running = 0;
+    this.queue = [];
+  }
 
+  async run(task) {
+    if (this.running >= this.concurrency) {
+      await new Promise((resolve) => this.queue.push(resolve));
+    }
+    this.running++;
+    try {
+      return await task();
+    } finally {
+      this.running--;
+      if (this.queue.length > 0) {
+        const next = this.queue.shift();
+        next();
+      }
+    }
+  }
+}
+
+const jobQueue = new AsyncQueue(1);
+
+/**
+ * Execute a child process asynchronously with timeout and streaming output
+ * @param {string} executable - Binary path to execute
+ * @param {string[]} args - Command arguments
+ * @param {object} options - Options (timeout, cwd)
+ * @returns {Promise<string>} stdout output
+ */
+function executeProcess(executable, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const { timeout = 120000, cwd = JOBSPY_DIR } = options;
+
+    logger.info(`[spawn] ${executable} ${args.join(' ')} (cwd: ${cwd}, timeout: ${timeout}ms)`);
+
+    const child = spawn(executable, args, {
+      cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
+
+    let stdoutData = '';
+    let stderrData = '';
+    let isTimedOut = false;
+
+    const timer = setTimeout(() => {
+      isTimedOut = true;
+      logger.warn(`Process timed out after ${timeout}ms, sending SIGTERM...`);
+      child.kill('SIGTERM');
+      setTimeout(() => {
+        try {
+          child.kill('SIGKILL');
+        } catch (_) {}
+      }, 5000).unref();
+    }, timeout);
+
+    child.stdout.on('data', (chunk) => {
+      stdoutData += chunk.toString('utf-8');
+    });
+
+    child.stderr.on('data', (chunk) => {
+      stderrData += chunk.toString('utf-8');
+    });
+
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      reject(new Error(`Failed to spawn process: ${err.message}`));
+    });
+
+    child.on('close', (code, signal) => {
+      clearTimeout(timer);
+      if (isTimedOut) {
+        return reject(new Error(`Job search process timed out after ${timeout}ms`));
+      }
+      if (code !== 0) {
+        logger.error(`Process exited with code ${code} (signal: ${signal})`, { stderr: stderrData });
+        return reject(new Error(`Job search failed (exit code ${code}): ${stderrData || 'Unknown error'}`));
+      }
+      resolve(stdoutData);
+    });
+  });
+}
+
+/**
+ * Resolve python executable path
+ * Checks venv first, then falls back to PATH python
+ * @returns {string}
+ */
+function resolvePythonExecutable() {
+  const isWin = process.platform === 'win32';
+  const venvPython = isWin
+    ? path.join(JOBSPY_DIR, '.venv', 'Scripts', 'python.exe')
+    : path.join(JOBSPY_DIR, '.venv', 'bin', 'python');
+
+  if (fs.existsSync(venvPython)) {
+    return venvPython;
+  }
+  return 'python';
+}
+
+/**
+ * Resolve which runner to use: docker or direct python
+ * Priority: JOBSPY_RUNNER env var > auto-detect docker > python
+ * @returns {'docker'|'python'}
+ */
+function resolveRunner() {
+  const forced = process.env.JOBSPY_RUNNER?.toLowerCase();
+  if (forced === 'docker' || forced === 'uv' || forced === 'python') {
+    return forced === 'docker' ? 'docker' : 'python';
+  }
+  return 'python';
+}
+
+/**
+ * Build executable and args for spawn
+ * @param {'docker'|'python'} runner
+ * @param {string[]} args - CLI arguments for main.py
+ * @returns {{ executable: string, args: string[] }}
+ */
+function buildSpawnCommand(runner, args) {
+  if (runner === 'docker') {
+    const dockerCmd = process.env.DOCKER_CMD || 'docker';
+    return {
+      executable: dockerCmd,
+      args: ['run', '--rm', 'jobspy', ...args],
+    };
+  }
+  return {
+    executable: resolvePythonExecutable(),
+    args: ['main.py', ...args],
+  };
+}
+
+/**
+ * Build command arguments from parameters
+ * @param {object} params - Validated search parameters
+ * @returns {string[]} Command line arguments
+ */
+function buildCommandArgs(params) {
+  const args = [];
+
+  if (params.siteNames) {
+    args.push('--site_name', params.siteNames);
+  }
+  if (params.searchTerm) {
+    args.push('--search_term', params.searchTerm);
+  }
+  if (params.location) {
+    args.push('--location', params.location);
+  }
+  if (params.distance !== undefined && params.distance !== null) {
+    args.push('--distance', String(params.distance));
+  }
+  if (params.jobType) {
+    args.push('--job_type', params.jobType);
+  }
+  if (params.googleSearchTerm) {
+    args.push('--google_search_term', params.googleSearchTerm);
+  }
+  if (params.resultsWanted !== undefined && params.resultsWanted !== null) {
+    args.push('--results_wanted', String(params.resultsWanted));
+  }
+  if (params.easyApply) {
+    args.push('--easy_apply');
+  }
+  if (params.descriptionFormat) {
+    args.push('--description_format', params.descriptionFormat);
+  }
+  if (params.offset !== undefined && params.offset !== null) {
+    args.push('--offset', String(params.offset));
+  }
+  if (params.hoursOld !== undefined && params.hoursOld !== null) {
+    args.push('--hours_old', String(params.hoursOld));
+  }
+  if (params.verbose !== undefined && params.verbose !== null) {
+    args.push('--verbose', String(params.verbose));
+  }
+  if (params.countryIndeed) {
+    args.push('--country_indeed', params.countryIndeed);
+  }
+  if (params.isRemote) {
+    args.push('--is_remote');
+  }
+  if (params.linkedinFetchDescription) {
+    args.push('--linkedin_fetch_description');
+  }
+  if (params.linkedinCompanyIds) {
+    args.push('--linkedin_company_ids', params.linkedinCompanyIds);
+  }
+  if (params.enforceAnnualSalary) {
+    args.push('--enforce_annual_salary');
+  }
+  if (params.proxies) {
+    args.push('--proxies', params.proxies);
+  }
+  if (params.caCert) {
+    args.push('--ca_cert', params.caCert);
+  }
+  args.push('--format', params.format || 'json');
+  return args;
+}
+
+/**
+ * Handler for the search_jobs MCP tool
+ * @param {object} params - Search parameters
+ * @returns {Promise<object>} Search results
+ */
+export async function searchJobsHandler(params) {
+  let stdout;
+  try {
+    logger.info('Starting job search with parameters', { params });
+
+    // Clean params by removing empty strings and undefined values
+    const cleanedParams = {};
+    for (const [key, value] of Object.entries(params)) {
+      if (value === null || value === undefined || value === '') {
+        continue;
+      }
+      cleanedParams[key] = value;
+    }
+
+    logger.info('Cleaned parameters', { cleanedParams });
+
+    const validatedParams = z.object(searchParams).parse(cleanedParams);
+    logger.info('Validated parameters', { validatedParams });
+
+    const args = buildCommandArgs(validatedParams);
+    const runner = resolveRunner();
+    const { executable, args: spawnArgs } = buildSpawnCommand(runner, args);
+
+    const timeout = validatedParams.timeout; // Fixed: use validatedParams.timeout (default 120000ms)
+    const cwd = JOBSPY_DIR;
+
+    stdout = await jobQueue.run(() =>
+      executeProcess(executable, spawnArgs, { timeout, cwd })
+    );
+
+    let parsedData;
+    try {
+      parsedData = JSON.parse(stdout.trim());
+    } catch (parseError) {
+      logger.error('Failed to parse output JSON from JobSpy', {
+        stdout,
+        parseError: parseError.message,
+      });
+      throw new Error(`Failed to parse JobSpy output: ${parseError.message}`);
+    }
+
+    const count = parsedData.count ?? (Array.isArray(parsedData.jobs) ? parsedData.jobs.length : 0);
+    const jobs = parsedData.jobs ?? (Array.isArray(parsedData) ? parsedData : []);
+
+    logger.info(`Found jobs: ${count}`);
+    return {
+      count,
+      message: 'Job search completed successfully',
+      jobs,
+    };
+  } catch (error) {
+    logger.error('Error in searchJobsHandler', {
+      error: error.message,
+      stdout,
+    });
+    throw error;
+  }
+}
+
+/**
+ * Register search_jobs tool with MCP server
+ * @param {object} server - McpServer instance
+ * @param {object} sseManager - SseManager instance
+ */
 export const searchJobsTool = (server, sseManager) =>
   server.tool(
     'search_jobs',
@@ -54,7 +309,6 @@ export const searchJobsTool = (server, sseManager) =>
               progress = 90; // Cap at 90% until complete
             }
 
-            // Send progress to all connected clients
             sseManager.notificationProgress(
               {
                 type: 'progress',
@@ -67,14 +321,13 @@ export const searchJobsTool = (server, sseManager) =>
           }, 2000);
         }
 
-        // Execute job search
-        const result = searchJobsHandler(params);
+        // Execute job search asynchronously
+        const result = await searchJobsHandler(params);
 
         // Clean up progress interval
         if (progressInterval) {
           clearInterval(progressInterval);
 
-          // Send 100% progress update to all connected clients
           if (extra.sessionId && sseManager.hasConnection(extra.sessionId)) {
             sseManager.notificationProgress(
               {
@@ -113,221 +366,3 @@ export const searchJobsTool = (server, sseManager) =>
     }
   );
 
-/**
- * Convert a date string to ISO 8601 format
- * Handles various input formats and normalizes them
- * @param {string|number|null} dateStr - The date string to convert
- * @returns {string|null} - ISO 8601 formatted date string or null if invalid
- */
-function convertToISODate(dateStr) {
-  if (!dateStr) return null;
-
-  try {
-    // If dateStr is a timestamp (number or numeric string)
-    if (!isNaN(dateStr)) {
-      // Check if it's milliseconds (13 digits) or seconds (10 digits)
-      const timestamp =
-        String(dateStr).length > 10 ? Number(dateStr) : Number(dateStr) * 1000;
-      return new Date(timestamp).toISOString();
-    }
-
-    // Otherwise try to parse as date string
-    const date = new Date(dateStr);
-    if (!isNaN(date.getTime())) {
-      return date.toISOString();
-    }
-
-    // If we couldn't parse it, return the original string
-    logger.warn(`Could not parse date: ${dateStr}`);
-    return dateStr;
-  } catch (error) {
-    logger.warn(`Error converting date: ${dateStr}`, { error: error.message });
-    return dateStr;
-  }
-}
-
-/**
- * Handler for the search_jobs MCP tool
- * @param {JobSearchParams} params - Search parameters
- * @returns {Promise<object>} Search results
- */
-export function searchJobsHandler(params) {
-  let result;
-  try {
-    logger.info('Starting job search with parameters', { params });
-
-    // Clean params by removing empty strings and 0 values
-    const cleanedParams = {};
-    for (const [key, value] of Object.entries(params)) {
-      // Skip null, undefined, empty strings, and 0 values
-      if (
-        value === null ||
-        value === undefined ||
-        value === '' ||
-        value === 0
-      ) {
-        continue;
-      }
-      cleanedParams[key] = value;
-    }
-
-    logger.info('Cleaned parameters', { cleanedParams });
-
-    const validatedParams = z.object(searchParams).parse(cleanedParams);
-
-    logger.info('Validated parameters', { validatedParams });
-
-    const args = buildCommandArgs(validatedParams);
-    const runner = resolveRunner();
-    const cmd = buildRunCommand(runner, args);
-    logger.info(`[${runner}] Spawning process: ${cmd}`);
-
-    const timeout = params.timeout || 60000; // Default timeout of 60 seconds
-    const cwd = runner === 'uv' ? JOBSPY_DIR : process.cwd();
-    result = execSync(cmd, { timeout, cwd }).toString();
-
-    const parsedData = JSON.parse(result);
-
-    // Convert to camelCase and normalize date fields to ISO 8601
-    const data = parsedData.map((job) => {
-      const jobCamelCase = changeCase.camelCase(job);
-
-      // Convert date fields to ISO 8601
-      if (jobCamelCase.datePosted) {
-        jobCamelCase.datePosted = convertToISODate(jobCamelCase.datePosted);
-      }
-
-      return jobCamelCase;
-    });
-
-    logger.info(`Found jobs: ${data.length}`);
-    return {
-      count: data.length || 0,
-      message: 'Job search completed successfully',
-      jobs: data || [],
-    };
-  } catch (error) {
-    logger.error('Error in searchJobsHandler', {
-      error: error.message,
-      result,
-    });
-    throw error;
-  }
-}
-
-/**
- * Check if Docker is available on the system
- * @returns {boolean}
- */
-function checkDockerAvailable() {
-  try {
-    execSync('docker --version', { stdio: 'ignore' });
-    // Also check if the jobspy Docker image exists
-    const images = execSync('docker images -q jobspy', { encoding: 'utf-8' });
-    return images.trim().length > 0;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Resolve which runner to use: docker or uv
- * Priority: JOBSPY_RUNNER env var > auto-detect docker > uv
- * @returns {'docker'|'uv'}
- */
-function resolveRunner() {
-  const forced = process.env.JOBSPY_RUNNER?.toLowerCase();
-  if (forced === 'docker' || forced === 'uv') {
-    return forced;
-  }
-  if (checkDockerAvailable()) {
-    return 'docker';
-  }
-  logger.info('Docker not available, falling back to uv + Python');
-  return 'uv';
-}
-
-/**
- * Build the full command string for the selected runner
- * @param {'docker'|'uv'} runner
- * @param {string[]} args - CLI arguments for main.py
- * @returns {string}
- */
-function buildRunCommand(runner, args) {
-  if (runner === 'docker') {
-    const dockerCmd = process.env.DOCKER_CMD || 'docker';
-    return `${dockerCmd} run --rm jobspy ${args.join(' ')}`;
-  }
-  // uv runner: run python via uv in the jobspy venv
-  return `uv run python main.py ${args.join(' ')}`;
-}
-
-/**
- * Build command arguments from parameters
- * @param {JobSearchParams} params - Search parameters
- * @returns {string[]} Command line arguments
- */
-function buildCommandArgs(params) {
-  const args = [];
-
-  // Add each parameter as a command line argument
-  if (params.siteNames) {
-    args.push('--site_name', `"${params.siteNames}"`);
-  }
-  if (params.searchTerm) {
-    args.push('--search_term', `"${params.searchTerm}"`);
-  }
-  if (params.location) {
-    args.push('--location', `"${params.location}"`);
-  }
-  if (params.distance) {
-    args.push('--distance', `${params.distance}`);
-  }
-  if (params.jobType) {
-    args.push('--job_type', `${params.jobType}`);
-  }
-  if (params.googleSearchTerm) {
-    args.push('--google_search_term', `"${params.googleSearchTerm}"`);
-  }
-  if (params.resultsWanted) {
-    args.push('--results_wanted', `${params.resultsWanted}`);
-  }
-  if (params.easyApply) {
-    args.push('--easy_apply');
-  }
-  if (params.descriptionFormat) {
-    args.push('--description_format', `${params.descriptionFormat}`);
-  }
-  if (params.offset) {
-    args.push('--offset', `${params.offset}`);
-  }
-  if (params.hoursOld) {
-    args.push('--hours_old', `${params.hoursOld}`);
-  }
-  if (params.verbose !== undefined) {
-    args.push('--verbose', `${params.verbose}`);
-  }
-  if (params.countryIndeed) {
-    args.push('--country_indeed', `"${params.countryIndeed}"`);
-  }
-  if (params.isRemote) {
-    args.push('--is_remote');
-  }
-  if (params.linkedinFetchDescription) {
-    args.push('--linkedin_fetch_description');
-  }
-  if (params.linkedinCompanyIds) {
-    args.push('--linkedin_company_ids', `"${params.linkedinCompanyIds}"`);
-  }
-  if (params.enforceAnnualSalary) {
-    args.push('--enforce_annual_salary');
-  }
-  if (params.proxies) {
-    args.push('--proxies', `"${params.proxies}"`);
-  }
-  if (params.caCert) {
-    args.push('--ca_cert', `"${params.caCert}"`);
-  }
-  args.push('--format', params.format || 'json');
-  return args;
-}

@@ -106,8 +106,13 @@ async function runServer() {
         });
 
         app.post('/api', async (req, res) => {
-          const data = searchJobsHandler(req.body);
-          res.json(data);
+          try {
+            const data = await searchJobsHandler(req.body);
+            res.json(data);
+          } catch (error) {
+            logger.error('Error in /api endpoint', { error: error.message });
+            res.status(500).json({ error: error.message });
+          }
         });
 
         // Start the Express server

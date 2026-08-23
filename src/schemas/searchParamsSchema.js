@@ -94,7 +94,7 @@ export const searchParams = {
     .describe(
       'Controls verbosity (0=errors only, 1=errors+warnings, 2=all logs)'
     )
-    .default(2),
+    .default(1),
   countryIndeed: z
     .string()
     .describe('Country for Indeed search')
@@ -128,7 +128,7 @@ export const searchParams = {
       // For other types, use Boolean conversion
       return Boolean(val);
     })
-    .default(true),
+    .default(false),
   linkedinCompanyIds: z
     .union([
       z.string().describe('Comma-separated list of LinkedIn company IDs'),

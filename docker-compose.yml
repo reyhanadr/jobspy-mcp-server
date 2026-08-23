@@ -1,21 +1,32 @@
-name: job-spy
+name: mcp-server
 
 services:
-  mcp:
+  job-spy-mcp:
     build:
       context: .
       dockerfile: Dockerfile
     image: job-spy-mcp-server
     restart: unless-stopped
+    init: true
     environment:
       ENABLE_SSE: "${ENABLE_SSE:-1}"
-      JOBSPY_RUNNER: "${JOBSPY_RUNNER:-uv}"
+      JOBSPY_RUNNER: "${JOBSPY_RUNNER:-python}"
       JOBSPY_HOST: "${JOBSPY_HOST:-0.0.0.0}"
       JOBSPY_PORT: "${JOBSPY_PORT:-9423}"
+      MALLOC_ARENA_MAX: "2"
+      LOG_LEVEL: "${LOG_LEVEL:-warn}"
     ports:
       - "${JOBSPY_PORT:-9423}:9423"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     deploy:
       resources:
         limits:
           cpus: "1.0"
-          memory: 1G
+          memory: 756m
+        reservations:
+          memory: 512m
+

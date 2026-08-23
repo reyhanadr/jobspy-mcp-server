@@ -10,12 +10,14 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
 # ---------- runner (Bun + Python/uv for JobSpy) ----------
 FROM oven/bun:1-slim AS runner
 
-# uv is required at runtime: the server invokes JobSpy via `uv run python main.py`
+# Install wget for lightweight healthcheck and tini for proper PID 1 zombie reaping
+RUN apt-get update && apt-get install -y --no-install-recommends wget tini \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /uvx /bin/
 
 ENV NODE_ENV=production \
     PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PYTHON_INSTALL_DIR=/opt/uv/python \
@@ -41,7 +43,8 @@ COPY --chown=bun:bun jobspy/main.py ./jobspy/main.py
 USER bun
 EXPOSE 9423
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD bun -e "fetch('http://localhost:9423/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+HEALTHCHECK --interval=60s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget -qO- http://localhost:9423/health || exit 1
 
-ENTRYPOINT ["bun", "run", "src/index.js"]
+ENTRYPOINT ["/usr/bin/tini", "--", "bun", "--smol", "run", "src/index.js"]
+

@@ -10,12 +10,10 @@ describe('Job Schema', () => {
 
   beforeAll(async () => {
     try {
-      // Load sample data from jobs.json
-      const jobsPath = path.join(__dirname, '../../jobSpy/jobs.json');
+      const jobsPath = path.join(__dirname, '../jobspy/jobs.json');
       const jobsContent = await fs.readFile(jobsPath, 'utf-8');
       jobsData = JSON.parse(jobsContent);
-    } catch (error) {
-      console.error('Error loading test data:', error);
+    } catch {
       // Provide fallback test data if file can't be loaded
       jobsData = [
         {
