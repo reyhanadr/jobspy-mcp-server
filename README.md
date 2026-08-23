@@ -251,7 +251,7 @@ The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) lets you 
 
 ```bash
 # Run the inspector against your server
-bunx @modelcontextprotocol/inspector bun run src/index.js
+bunx @modelcontextprotocol/inspector -e ENABLE_SSE=0 --cwd "C:\path-to-project\jobspy-mcp-server" bun run "C:\path-to-projectjobspy-mcp-server\src\index.js"
 ```
 
 This opens a browser UI where you can:
@@ -259,6 +259,33 @@ This opens a browser UI where you can:
 - Invoke `search_jobs` with custom parameters and see responses
 - Inspect JSON-RPC messages between client and server
 - Debug connection and transport issues
+
+### Testing SSE with MCP Inspector
+
+1. Make sure SSE is enabled (`.env` has `ENABLE_SSE=1`), then start the server:
+
+```bash
+bun run src/index.js
+```
+
+The server listens at `http://localhost:9423/sse`.
+
+2. In a second terminal, connect the Inspector to the SSE endpoint:
+
+```bash
+bunx @modelcontextprotocol/inspector --server-url http://localhost:9423/sse
+```
+
+This opens the Inspector web UI connected over SSE (the `/sse` path is
+auto-detected as SSE transport). For a scriptable command-line client, add
+`--cli`:
+
+```bash
+bunx @modelcontextprotocol/inspector --cli --server-url http://localhost:9423/sse --method tools/list
+```
+
+> **Note:** Current Inspector versions point at a running server with
+> `--server-url`. Older versions used `--transport sse --url <url>` instead.
 
 ### Quick API test
 
