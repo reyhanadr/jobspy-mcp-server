@@ -1,5 +1,5 @@
 import logger from '../logger.js';
-import { searchParams } from '../schemas/searchParamsSchema.js';
+import { searchParams, coerceBoolean } from '../schemas/searchParamsSchema.js';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -71,7 +71,7 @@ function executeProcess(executable, args, options = {}) {
       setTimeout(() => {
         try {
           child.kill('SIGKILL');
-        } catch (_) {}
+        } catch {}
       }, 5000).unref();
     }, timeout);
 
@@ -221,6 +221,13 @@ function buildCommandArgs(params) {
   return args;
 }
 
+const BOOLEAN_KEYS = new Set([
+  'isRemote',
+  'linkedinFetchDescription',
+  'easyApply',
+  'enforceAnnualSalary',
+]);
+
 /**
  * Handler for the search_jobs MCP tool
  * @param {object} params - Search parameters
@@ -231,13 +238,14 @@ export async function searchJobsHandler(params) {
   try {
     logger.info('Starting job search with parameters', { params });
 
-    // Clean params by removing empty strings and undefined values
+    // Clean params by removing empty strings and undefined values,
+    // and coerce boolean-like strings ("true", "1", "yes") for REST/CLI callers.
     const cleanedParams = {};
     for (const [key, value] of Object.entries(params)) {
       if (value === null || value === undefined || value === '') {
         continue;
       }
-      cleanedParams[key] = value;
+      cleanedParams[key] = BOOLEAN_KEYS.has(key) ? coerceBoolean(value) : value;
     }
 
     logger.info('Cleaned parameters', { cleanedParams });
@@ -249,11 +257,11 @@ export async function searchJobsHandler(params) {
     const runner = resolveRunner();
     const { executable, args: spawnArgs } = buildSpawnCommand(runner, args);
 
-    const timeout = validatedParams.timeout; // Fixed: use validatedParams.timeout (default 120000ms)
+    const timeout = validatedParams.timeout;
     const cwd = JOBSPY_DIR;
 
     stdout = await jobQueue.run(() =>
-      executeProcess(executable, spawnArgs, { timeout, cwd })
+      executeProcess(executable, spawnArgs, { timeout, cwd }),
     );
 
     let parsedData;
@@ -316,7 +324,7 @@ export const searchJobsTool = (server, sseManager) =>
                 progress,
                 message: `Searching for jobs (${progress}%)...`,
               },
-              extra.sessionId
+              extra.sessionId,
             );
           }, 2000);
         }
@@ -336,7 +344,7 @@ export const searchJobsTool = (server, sseManager) =>
                 progress: 100,
                 message: 'Job search completed',
               },
-              extra.sessionId
+              extra.sessionId,
             );
           }
         }
@@ -363,6 +371,5 @@ export const searchJobsTool = (server, sseManager) =>
           },
         };
       }
-    }
+    },
   );
-

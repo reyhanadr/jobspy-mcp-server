@@ -1,25 +1,57 @@
 import { z } from 'zod';
 
+// Single source of truth for all supported site names
+export const UPSTREAM_SITES = [
+  'indeed',
+  'linkedin',
+  'zip_recruiter',
+  'glassdoor',
+  'google',
+  'bayt',
+  'naukri',
+  'bdjobs',
+];
+export const LOCAL_SITES = ['jobstreet', 'glints'];
+export const SUPPORTED_SITES = [...UPSTREAM_SITES, ...LOCAL_SITES];
+
+/**
+ * Helper to coerce string/number truthy values into booleans
+ * for REST/CLI callers before Zod schema validation.
+ * @param {unknown} val
+ * @returns {boolean}
+ */
+export function coerceBoolean(val) {
+  if (typeof val === 'boolean') {
+    return val;
+  }
+  if (typeof val === 'string') {
+    return ['true', 'yes', '1', 'on', 'y'].includes(val.trim().toLowerCase());
+  }
+  return Boolean(val);
+}
+
 export const searchParams = {
   siteNames: z
     .union([
       z
         .string()
         .describe(
-          'Comma-separated list of job sites to search. Options: indeed,linkedin,zip_recruiter,glassdoor,google,bayt,naukri'
+          `Comma-separated list of job sites to search. Options: ${SUPPORTED_SITES.join(',')}`,
         ),
       z
         .array(z.string())
         .describe(
-          'Array of job sites to search. Options: indeed,linkedin,zip_recruiter,glassdoor,google,bayt,naukri'
+          `Array of job sites to search. Options: ${SUPPORTED_SITES.join(',')}`,
         ),
     ])
+    .describe(
+      `Job sites to search (comma-separated string or array). Options: ${SUPPORTED_SITES.join(', ')}`,
+    )
+    .default('indeed')
     .transform((val) => {
-      // If it's already a string, return it as is
       if (typeof val === 'string') {
         return val;
       }
-      // If it's an array, join it with commas
       if (Array.isArray(val)) {
         return val.join(',');
       }
@@ -28,23 +60,12 @@ export const searchParams = {
     .refine(
       (val) => {
         const sites = val.split(',').map((site) => site.trim());
-        const validSites = [
-          'indeed',
-          'linkedin',
-          'zip_recruiter',
-          'glassdoor',
-          'google',
-          'bayt',
-          'naukri',
-        ];
-        return sites.every((site) => validSites.includes(site));
+        return sites.every((site) => SUPPORTED_SITES.includes(site));
       },
       {
-        message:
-          'Invalid site names. Allowed values: indeed, linkedin, zip_recruiter, glassdoor, google, bayt, naukri',
-      }
-    )
-    .default('indeed'),
+        message: `Invalid site names. Allowed values: ${SUPPORTED_SITES.join(', ')}`,
+      },
+    ),
   searchTerm: z
     .string()
     .describe('Search term for jobs')
@@ -65,8 +86,8 @@ export const searchParams = {
     .number()
     .int()
     .describe('Number of results wanted')
-    .transform((val) => (val === 0 ? 20 : val))
-    .default(20),
+    .default(20)
+    .transform((val) => (val === 0 ? 20 : val)),
   easyApply: z
     .boolean()
     .describe('Filter for jobs that are hosted on the job board site')
@@ -84,15 +105,15 @@ export const searchParams = {
     .number()
     .int()
     .describe('How many hours old the jobs can be')
-    .transform((val) => (val === 0 ? 72 : val))
-    .default(72),
+    .default(72)
+    .transform((val) => (val === 0 ? 72 : val)),
   verbose: z
     .number()
     .int()
     .min(0)
     .max(2)
     .describe(
-      'Controls verbosity (0=errors only, 1=errors+warnings, 2=all logs)'
+      'Controls verbosity (0=errors only, 1=errors+warnings, 2=all logs)',
     )
     .default(1),
   countryIndeed: z
@@ -100,34 +121,12 @@ export const searchParams = {
     .describe('Country for Indeed search')
     .default('USA'),
   isRemote: z
-    .any()
-    .describe(
-      'Whether to search for remote jobs only. Accepts any truthy value.'
-    )
-    .transform((val) => {
-      // Convert any truthy value to boolean
-      if (typeof val === 'string') {
-        // For strings, check for common "true" values
-        return ['true', 'yes', '1', 'on', 'y'].includes(val.toLowerCase());
-      }
-      // For other types, use Boolean conversion
-      return Boolean(val);
-    })
+    .boolean()
+    .describe('Whether to search for remote jobs only')
     .default(false),
   linkedinFetchDescription: z
-    .any()
-    .describe(
-      'Whether to fetch LinkedIn job descriptions (slower). Accepts any truthy value.'
-    )
-    .transform((val) => {
-      // Convert any truthy value to boolean
-      if (typeof val === 'string') {
-        // For strings, check for common "true" values
-        return ['true', 'yes', '1', 'on', 'y'].includes(val.toLowerCase());
-      }
-      // For other types, use Boolean conversion
-      return Boolean(val);
-    })
+    .boolean()
+    .describe('Whether to fetch full job descriptions on LinkedIn and Glints (slower)')
     .default(false),
   linkedinCompanyIds: z
     .union([
@@ -135,6 +134,8 @@ export const searchParams = {
       z.array(z.number()).describe('Array of LinkedIn company IDs'),
     ])
     .nullable()
+    .describe('Comma-separated string or array of LinkedIn company IDs')
+    .default(null)
     .transform((val) => {
       if (typeof val === 'string') {
         return val;
@@ -143,8 +144,7 @@ export const searchParams = {
         return val.join(',');
       }
       return val;
-    })
-    .default(null),
+    }),
   enforceAnnualSalary: z
     .boolean()
     .describe('Converts wages to annual salary')
@@ -155,6 +155,8 @@ export const searchParams = {
       z.array(z.string()).describe('Array of proxies'),
     ])
     .nullable()
+    .describe('Comma-separated string or array of proxies')
+    .default(null)
     .transform((val) => {
       if (typeof val === 'string') {
         return val;
@@ -163,8 +165,7 @@ export const searchParams = {
         return val.join(',');
       }
       return val;
-    })
-    .default(null),
+    }),
   caCert: z
     .string()
     .nullable()

@@ -15,6 +15,7 @@ services:
       JOBSPY_PORT: "${JOBSPY_PORT:-9423}"
       MALLOC_ARENA_MAX: "2"
       LOG_LEVEL: "${LOG_LEVEL:-warn}"
+      ENABLE_LOCAL_PORTALS: "${ENABLE_LOCAL_PORTALS:-true}"
     ports:
       - "${JOBSPY_PORT:-9423}:9423"
     logging:
@@ -22,6 +23,8 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    mem_limit: 756m
+    mem_reservation: 512m
     deploy:
       resources:
         limits:
@@ -29,4 +32,3 @@ services:
           memory: 756m
         reservations:
           memory: 512m
-

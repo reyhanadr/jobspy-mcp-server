@@ -18,6 +18,8 @@ COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /uvx /bin/
 
 ENV NODE_ENV=production \
     PYTHONUNBUFFERED=1 \
+    PYTHONUTF8=1 \
+    ENABLE_LOCAL_PORTALS=true \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PYTHON_INSTALL_DIR=/opt/uv/python \
@@ -39,6 +41,14 @@ COPY --from=deps --chown=bun:bun /app/node_modules ./node_modules
 COPY --chown=bun:bun package.json ./
 COPY --chown=bun:bun src ./src
 COPY --chown=bun:bun jobspy/main.py ./jobspy/main.py
+COPY --chown=bun:bun jobspy/portals ./jobspy/portals
+
+# Build-time smoke test: verifikasi bahwa portals/ ter-copy dan LOCAL_SCRAPERS valid
+RUN cd /app/jobspy && /app/jobspy/.venv/bin/python -c \
+    "from portals import LOCAL_SCRAPERS; \
+     assert 'jobstreet' in LOCAL_SCRAPERS, 'JobStreet scraper missing'; \
+     assert 'glints' in LOCAL_SCRAPERS, 'Glints scraper missing'; \
+     print('✓ portals OK:', list(LOCAL_SCRAPERS.keys()))"
 
 USER bun
 EXPOSE 9423
@@ -47,4 +57,3 @@ HEALTHCHECK --interval=60s --timeout=5s --start-period=15s --retries=3 \
   CMD wget -qO- http://localhost:9423/health || exit 1
 
 ENTRYPOINT ["/usr/bin/tini", "--", "bun", "--smol", "run", "src/index.js"]
-

@@ -8,7 +8,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server that le
 
 ## Why this project?
 
-- **Search multiple job boards at once** — Indeed, LinkedIn, ZipRecruiter, Glassdoor, Google, Bayt, and Naukri
+- **Search multiple job boards at once** — Indeed, LinkedIn, ZipRecruiter, Glassdoor, Google, Bayt, Naukri, BDJobs, JobStreet (ID/MY/SG/PH), and Glints (ID/SG/MY/VN/TW)
 - **Structured results for AI** — clean JSON with camelCase keys and ISO-8601 dates that models and applications can consume directly
 - **Fine-grained filtering** — keywords, location, distance, job type, posting recency, remote-only, salary normalization, and more
 - **Two transports** — stdio for desktop clients like Claude Desktop, plus Server-Sent Events (SSE) for web apps with live progress updates
@@ -62,13 +62,14 @@ Configuration is read from environment variables or a `.env` file in the project
 
 ### Environment variables
 
-| Variable        | Description                                                          | Default    |
-|-----------------|----------------------------------------------------------------------|------------|
-| `JOBSPY_PORT`   | Port for the HTTP/SSE server                                         | `9423`     |
-| `JOBSPY_HOST`   | Host to bind the HTTP/SSE server to                                  | `0.0.0.0`  |
-| `ENABLE_SSE`    | Set to `true` to enable the SSE/HTTP transport (`false` uses stdio)  | `false`    |
-| `JOBSPY_RUNNER` | Force the JobSpy runner: `python`, `uv`, or `docker`                 | `python`   |
-| `DOCKER_CMD`    | Docker command used by the `docker` runner                           | `docker`   |
+| Variable               | Description                                                                   | Default    |
+|------------------------|-------------------------------------------------------------------------------|------------|
+| `JOBSPY_PORT`          | Port for the HTTP/SSE server                                                  | `9423`     |
+| `JOBSPY_HOST`          | Host to bind the HTTP/SSE server to                                           | `0.0.0.0`  |
+| `ENABLE_SSE`           | Set to `true` to enable the SSE/HTTP transport (`false` uses stdio)           | `false`    |
+| `JOBSPY_RUNNER`        | Force the JobSpy runner: `python`, `uv`, or `docker`                          | `python`   |
+| `DOCKER_CMD`           | Docker command used by the `docker` runner                                    | `docker`   |
+| `ENABLE_LOCAL_PORTALS` | Enable sidecar local portals (`jobstreet`, `glints`); set `false` to disable  | `true`     |
 
 Example `.env`:
 
@@ -77,6 +78,7 @@ JOBSPY_RUNNER=python
 JOBSPY_HOST=0.0.0.0
 JOBSPY_PORT=9423
 ENABLE_SSE=true
+ENABLE_LOCAL_PORTALS=true
 ```
 
 ### How the JobSpy runner is selected
@@ -202,7 +204,7 @@ Searches for jobs across one or more job listing websites.
 
 | Parameter                | Type              | Description                                                          | Default            |
 |--------------------------|-------------------|----------------------------------------------------------------------|--------------------|
-| `siteNames`              | string \| string[] | Sites to search: `indeed,linkedin,zip_recruiter,glassdoor,google,bayt,naukri` | `"indeed"` |
+| `siteNames`              | string \| string[] | Sites to search: `indeed,linkedin,zip_recruiter,glassdoor,google,bayt,naukri,bdjobs,jobstreet,glints` | `"indeed"` |
 | `searchTerm`             | string            | Search term for jobs                                                 | `"software engineer"` |
 | `location`               | string            | Job location                                                         | `"remote"`         |
 | `distance`               | integer           | Search radius in miles                                               | `50`               |
@@ -216,7 +218,7 @@ Searches for jobs across one or more job listing websites.
 | `verbose`                | integer           | `0`=errors only, `1`=+warnings, `2`=all logs                         | `1`                |
 | `countryIndeed`          | string            | Country for Indeed search                                            | `"USA"`            |
 | `isRemote`               | boolean           | Search for remote jobs only                                          | `false`            |
-| `linkedinFetchDescription` | boolean         | Fetch LinkedIn job descriptions (slower)                             | `false`            |
+| `linkedinFetchDescription` | boolean         | Fetch full job descriptions on LinkedIn and Glints (slower)          | `false`            |
 | `linkedinCompanyIds`     | string \| number[] | Restrict LinkedIn results to company IDs                             | `null`             |
 | `enforceAnnualSalary`    | boolean           | Normalize wages to an annual salary                                  | `false`            |
 | `proxies`                | string \| string[] | Comma-separated list of proxies                                      | `null`             |
@@ -278,6 +280,7 @@ ENABLE_SSE=true
 JOBSPY_RUNNER=python
 JOBSPY_HOST=0.0.0.0
 JOBSPY_PORT=9423
+ENABLE_LOCAL_PORTALS=true
 ```
 
 To use the `docker` runner instead of `python`, build the JobSpy image first and set `JOBSPY_RUNNER=docker`:
@@ -304,48 +307,125 @@ bun run lint:fix    # auto-fix
 ### Running tests
 
 ```bash
+# Run Zod schema tests (Bun)
 bun test
+
+# Run offline Python parser tests (JobStreet & Glints)
+./jobspy/.venv/Scripts/python.exe tests/portals/test_jobstreet_parser.py
+./jobspy/.venv/Scripts/python.exe tests/portals/test_glints_parser.py
 ```
 
-Runs the schema validation tests in `tests/`.
+### Testing with MCP Inspector (`bunx` / `npx`)
 
-### Testing with MCP Inspector
+The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) provides an interactive web UI and a CLI to test tools (`search_jobs`), prompts, and JSON-RPC messages on this server. You can launch it with either **`bunx`** or **`npx`**.
 
-The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) lets you interactively test and debug your MCP server:
+#### 1. Testing via `stdio` transport (recommended for local dev)
+
+Run one of the commands below from the project root directory. It spawns the MCP server in `stdio` mode (`ENABLE_SSE=false`) and opens the Inspector UI in your browser:
+
+**Using `bunx`:**
 
 ```bash
-# Run the inspector against your server (stdio)
-bunx @modelcontextprotocol/inspector -e ENABLE_SSE=false --cwd "C:\path-to-project\jobspy-mcp-server" bun run "C:\path-to-project\jobspy-mcp-server\src\index.js"
+# From the project root
+bunx @modelcontextprotocol/inspector -e ENABLE_SSE=false bun run src/index.js
+
+# Or with an explicit working directory from anywhere
+bunx @modelcontextprotocol/inspector -e ENABLE_SSE=false --cwd "C:\path-to-project\jobspy-mcp-server" bun run "C:\path-to-project\jobspy-mcp-server\src/index.js"
 ```
 
-This opens a browser UI where you can:
+**Using `npx`:**
 
-- List available tools, prompts, and resources
-- Invoke `search_jobs` with custom parameters and see responses
-- Inspect JSON-RPC messages between client and server
-- Debug connection and transport issues
+```bash
+# Using Node.js + npx from the project root
+npx @modelcontextprotocol/inspector -e ENABLE_SSE=false node src/index.js
 
-### Testing SSE with MCP Inspector
+# Or running the server with Bun via npx
+npx @modelcontextprotocol/inspector -e ENABLE_SSE=false bun run src/index.js
+```
 
-1. Enable SSE and start the server:
+#### 2. Testing via `SSE` transport (local server or Docker container)
+
+1. Start the MCP server with SSE enabled (locally or via Docker Compose):
 
    ```bash
+   # Local (Bash)
    ENABLE_SSE=true bun run src/index.js
+
+   # Local (Windows PowerShell)
+   $env:ENABLE_SSE="true"; bun run src/index.js
+
+   # Or via Docker Compose
+   docker compose up -d
    ```
 
-   The server listens at `http://localhost:9423/sse`.
+   The server will listen at `http://localhost:9423/sse`.
 
-2. In a second terminal, connect the Inspector to the SSE endpoint:
+2. In a second terminal, launch the MCP Inspector pointing to the SSE endpoint:
+
+   **Using `bunx`:**
 
    ```bash
    bunx @modelcontextprotocol/inspector --server-url http://localhost:9423/sse
    ```
 
-   This opens the Inspector web UI connected over SSE (the `/sse` path is auto-detected as SSE transport). For a scriptable command-line client, add `--cli`:
+   **Using `npx`:**
 
    ```bash
-   bunx @modelcontextprotocol/inspector --cli --server-url http://localhost:9423/sse --method tools/list
+   npx @modelcontextprotocol/inspector --server-url http://localhost:9423/sse
    ```
+
+#### 3. Using the MCP Inspector Web UI
+
+1. Open the URL printed in your terminal (e.g. `http://localhost:6274/?MCP_PROXY_AUTH_TOKEN=...`).
+2. In the left sidebar:
+   - For **stdio**: verify **Transport Type** is `STDIO` and click **Connect**.
+   - For **SSE**: select **Transport Type** `SSE`, set **URL** to `http://localhost:9423/sse`, and click **Connect**.
+3. Go to the **Tools** tab → click **List Tools** → select **`search_jobs`**.
+4. Fill in the test parameters (for example, testing Indonesian portals `jobstreet` and `glints`) and click **Run Tool**:
+   - `siteNames`: `jobstreet,glints`
+   - `searchTerm`: `python engineer`
+   - `location`: `Jakarta`
+   - `resultsWanted`: `5`
+   - `hoursOld`: `720`
+5. You can also test the **Prompts** tab (`search_jobs`, `job_recommendations`, `resume_feedback`) and inspect raw JSON-RPC requests/notifications in the bottom panel.
+
+#### 4. Headless CLI testing (`--cli`)
+
+You can also run one-off non-interactive checks directly from your terminal using `--cli`:
+
+**List available tools:**
+
+```bash
+# Via SSE (bunx / npx)
+bunx @modelcontextprotocol/inspector --cli --server-url http://localhost:9423/sse --method tools/list
+npx @modelcontextprotocol/inspector --cli --server-url http://localhost:9423/sse --method tools/list
+
+# Via stdio (bunx / npx)
+bunx @modelcontextprotocol/inspector --cli -e ENABLE_SSE=false bun run src/index.js --method tools/list
+npx @modelcontextprotocol/inspector --cli -e ENABLE_SSE=false node src/index.js --method tools/list
+```
+
+**Call `search_jobs` directly from the CLI:**
+
+```bash
+# Using bunx
+bunx @modelcontextprotocol/inspector --cli --server-url http://localhost:9423/sse \
+  --method tools/call \
+  --tool-name search_jobs \
+  --tool-arg siteNames=jobstreet,glints \
+  --tool-arg searchTerm=python \
+  --tool-arg location=Jakarta \
+  --tool-arg resultsWanted=3
+
+# Using npx
+npx @modelcontextprotocol/inspector --cli --server-url http://localhost:9423/sse \
+  --method tools/call \
+  --tool-name search_jobs \
+  --tool-arg siteNames=jobstreet,glints \
+  --tool-arg searchTerm=python \
+  --tool-arg location=Jakarta \
+  --tool-arg resultsWanted=3
+```
 
 > **Note:** Current Inspector versions point at a running server with `--server-url`. Older versions used `--transport sse --url <url>` instead.
 
@@ -359,10 +439,14 @@ This opens a browser UI where you can:
 │   ├── schemas/                 # Zod schemas for tools
 │   ├── prompts/                 # Prompt definitions
 │   └── tools/                   # Tool definitions & handlers
-├── jobspy/                      # Python side: JobSpy CLI wrapper
-│   ├── main.py
-│   └── requirements.txt
-├── tests/                       # Schema tests + api.http
+├── jobspy/                      # Python side: JobSpy CLI & sidecar scrapers
+│   ├── main.py                  # Orchestrator (upstream + sidecar portals)
+│   ├── requirements.txt
+│   └── portals/                 # Local sidecar scrapers
+│       ├── base.py              # Normalization to JobSpy desired_order
+│       ├── jobstreet/           # JobStreet (SEEK v5 REST API)
+│       └── glints/              # Glints (GraphQL v2 API)
+├── tests/                       # Schema tests, offline portal tests & fixtures
 ├── Dockerfile                   # Multi-stage Bun + Python image
 └── docker-compose.yml
 ```

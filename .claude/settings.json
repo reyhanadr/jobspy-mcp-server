@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:id.jobstreet.com)",
+      "WebFetch(domain:glints.com)",
+      "WebFetch(domain:www.jobstreet.co.id)"
+    ]
+  }
+}

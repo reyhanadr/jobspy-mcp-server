@@ -1,0 +1,151 @@
+{
+  "data": {
+    "searchJobs": {
+      "hasMore": true,
+      "jobsInPage": [
+        {
+          "id": "99297a29-e473-4ab5-a511-323c8e99146b",
+          "title": "Python Engineer",
+          "workArrangementOption": "ONSITE",
+          "status": "OPEN",
+          "createdAt": "2026-10-18T09:03:08.802Z",
+          "updatedAt": "2026-10-20T02:52:25.720536Z",
+          "educationLevel": "BACHELOR_DEGREE",
+          "type": "FULL_TIME",
+          "minYearsOfExperience": 1,
+          "maxYearsOfExperience": 3,
+          "company": {
+            "id": "2f8c8c50-a070-4e83-b5b9-5908a9b06c5e",
+            "name": "PT First Wap International",
+            "logo": "16a4e48b2086198088fbe949fbcbccd4.jpg",
+            "industry": {
+              "name": "Telecommunications"
+            }
+          },
+          "citySubDivision": null,
+          "city": null,
+          "country": {
+            "code": "ID",
+            "name": "Indonesia"
+          },
+          "location": {
+            "id": "1a26bce1-b0a8-4677-a380-79701d53185a",
+            "name": "Setiabudi",
+            "formattedName": "Setiabudi",
+            "level": 4,
+            "parents": [
+              {
+                "id": "078b37b2-e791-4739-958e-c29192e5df3e",
+                "name": "Jakarta Selatan",
+                "formattedName": "Jakarta Selatan",
+                "level": 3
+              },
+              {
+                "id": "78d63064-78a1-4577-8516-036a6c5e903e",
+                "name": "DKI Jakarta",
+                "formattedName": "DKI Jakarta",
+                "level": 2
+              },
+              {
+                "id": "7542a4d7-4324-4f76-ae1f-2e37ffb1198b",
+                "name": "Indonesia",
+                "formattedName": "Indonesia",
+                "level": 1
+              }
+            ]
+          },
+          "salaries": [
+            {
+              "id": "2e58d02c-26fb-4804-9eea-66f62e603530",
+              "salaryType": "BASIC",
+              "salaryMode": "MONTH",
+              "minAmount": 9000000,
+              "maxAmount": 13000000,
+              "CurrencyCode": "IDR"
+            }
+          ],
+          "hierarchicalJobCategory": {
+            "id": "dcf154bc-d6ae-40df-afd7-bf88152235ee",
+            "level": 3,
+            "name": "Backend Developer"
+          },
+          "skills": [
+            {
+              "mustHave": true,
+              "skill": {
+                "id": "79446c9d-5169-44ae-8251-6b29215c93b4",
+                "name": "Python"
+              }
+            },
+            {
+              "mustHave": true,
+              "skill": {
+                "id": "70e5de58-6d3b-4317-ac31-65157974d28f",
+                "name": "Django"
+              }
+            },
+            {
+              "mustHave": true,
+              "skill": {
+                "id": "41bbe321-a5bd-4127-bdc8-a8081d838f48",
+                "name": "PostgreSQL"
+              }
+            }
+          ]
+        },
+        {
+          "id": "2a1cd3ef-799e-4005-a6c1-7a1a6a344ac3",
+          "title": "Remote AI & Data Engineer",
+          "workArrangementOption": "REMOTE",
+          "status": "OPEN",
+          "createdAt": "2026-10-20T12:00:00.000Z",
+          "updatedAt": "2026-10-21T01:00:00.000Z",
+          "educationLevel": "BACHELOR_DEGREE",
+          "type": "CONTRACT",
+          "minYearsOfExperience": 3,
+          "maxYearsOfExperience": 5,
+          "company": {
+            "id": "88888888-e473-4ab5-a511-323c8e99146b",
+            "name": "Nusantara Cloud AI",
+            "logo": null,
+            "industry": {
+              "name": "Computer Software"
+            }
+          },
+          "citySubDivision": null,
+          "city": {
+            "id": "111",
+            "name": "Bandung"
+          },
+          "country": {
+            "code": "ID",
+            "name": "Indonesia"
+          },
+          "location": null,
+          "salaries": [],
+          "hierarchicalJobCategory": {
+            "id": "cat-2",
+            "level": 3,
+            "name": "Data Scientist"
+          },
+          "skills": [
+            {
+              "mustHave": true,
+              "skill": {
+                "id": "s1",
+                "name": "Python"
+              }
+            },
+            {
+              "mustHave": false,
+              "skill": {
+                "id": "s2",
+                "name": "FastAPI"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

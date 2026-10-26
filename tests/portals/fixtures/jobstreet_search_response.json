@@ -1,0 +1,136 @@
+{
+  "totalCount": 735,
+  "data": [
+    {
+      "advertiser": {
+        "id": "60189544",
+        "description": "PT. Tech Corp Indonesia"
+      },
+      "bulletPoints": [
+        "Competitive salary and benefits package",
+        "BPJS Kesehatan & Ketenagakerjaan",
+        "Flexible hybrid engineering culture"
+      ],
+      "branding": {
+        "serpLogoUrl": "https://bx-branding-gateway.cloud.seek.com.au/sample-logo/jdpLogo"
+      },
+      "classifications": [
+        {
+          "classification": {
+            "id": "6281",
+            "description": "Information & Communication Technology"
+          },
+          "subclassification": {
+            "id": "6287",
+            "description": "Developers/Programmers"
+          }
+        }
+      ],
+      "companyName": "Tech Corp Indonesia",
+      "employer": {
+        "id": "438846",
+        "name": "Tech Corp Indonesia",
+        "companyUrl": "https://id.jobstreet.com/companies/tech-corp-indonesia-438846"
+      },
+      "id": "78901234",
+      "isFeatured": false,
+      "listingDate": "2026-10-20T08:30:00Z",
+      "listingDateDisplay": "1d ago",
+      "locations": [
+        {
+          "label": "Jakarta Selatan, DKI Jakarta",
+          "countryCode": "ID",
+          "seoHierarchy": [
+            {
+              "contextualName": "Jakarta Selatan"
+            },
+            {
+              "contextualName": "DKI Jakarta"
+            }
+          ]
+        }
+      ],
+      "roleId": "python-backend-engineer",
+      "salaryLabel": "Rp 25.000.000 – Rp 40.000.000 per month",
+      "teaser": "Looking for an experienced Python Engineer to build scalable fintech microservices in Jakarta.",
+      "title": "Senior Python Backend Engineer",
+      "workTypes": [
+        "Full time"
+      ],
+      "workArrangements": {
+        "data": [
+          {
+            "id": "1",
+            "label": {
+              "text": "On-site"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "advertiser": {
+        "id": "60999999",
+        "description": "Global AI Labs"
+      },
+      "bulletPoints": [
+        "100% Remote across APAC",
+        "Work on cutting-edge LLM & MCP tooling"
+      ],
+      "branding": {},
+      "classifications": [
+        {
+          "classification": {
+            "id": "6281",
+            "description": "Information & Communication Technology"
+          },
+          "subclassification": {
+            "id": "6290",
+            "description": "Engineering - Software"
+          }
+        }
+      ],
+      "companyName": "Global AI Labs",
+      "employer": {
+        "id": "555555",
+        "name": "Global AI Labs",
+        "companyUrl": "https://id.jobstreet.com/companies/global-ai-labs-555555"
+      },
+      "id": "78901235",
+      "isFeatured": true,
+      "listingDate": "2026-10-21T03:00:00Z",
+      "listingDateDisplay": "5h ago",
+      "locations": [
+        {
+          "label": "Bandung, Jawa Barat",
+          "countryCode": "ID",
+          "seoHierarchy": [
+            {
+              "contextualName": "Bandung"
+            },
+            {
+              "contextualName": "Jawa Barat"
+            }
+          ]
+        }
+      ],
+      "roleId": "ai-agent-developer",
+      "salaryLabel": "",
+      "teaser": "Build modern AI Agents and MCP tools with Python & Bun.",
+      "title": "Remote AI Agent Developer",
+      "workTypes": [
+        "Contract/Temp"
+      ],
+      "workArrangements": {
+        "data": [
+          {
+            "id": "3",
+            "label": {
+              "text": "Remote"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
